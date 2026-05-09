@@ -1,16 +1,23 @@
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 
 
 class LegalChunkRefiner:
     """
-    Refine legal article-level chunks into smaller retrieval-friendly chunks.
+    Refine article-level legal chunks into smaller retrieval-friendly chunks.
 
-    Priority:
-    1. Keep article if short enough
+    Metadata output dùng tiếng Việt:
+    - khoan
+    - diem
+    - chi_so_chunk
+    - tong_so_chunk
+    - don_vi_con
+
+    Strategy:
+    1. Keep article if short enough.
     2. Split by numbered clauses: 1., 2., 3.
-    3. If clause still too large, split by letter points: a), b), c)
-    4. If still too large, split by smart size boundary (not raw char cut)
+    3. If clause is too large, split by letter points: a), b), c).
+    4. If still too large, split by smart size boundary.
     """
 
     def __init__(
@@ -32,9 +39,11 @@ class LegalChunkRefiner:
                 refined.append(self._build_refined_chunk(
                     text=text,
                     metadata=metadata,
-                    chunk_index=1,
-                    chunk_total=1,
-                    sub_unit="article_full"
+                    chi_so_chunk=1,
+                    tong_so_chunk=1,
+                    don_vi_con="toàn_bộ_điều",
+                    khoan=None,
+                    diem=None,
                 ))
                 continue
 
@@ -47,24 +56,26 @@ class LegalChunkRefiner:
                     refined.append(self._build_refined_chunk(
                         text=part,
                         metadata=metadata,
-                        chunk_index=i,
-                        chunk_total=len(windows),
-                        sub_unit="article_window"
+                        chi_so_chunk=i,
+                        tong_so_chunk=len(windows),
+                        don_vi_con="cửa_sổ_điều",
+                        khoan=None,
+                        diem=None,
                     ))
                 continue
 
             temp_parts = []
 
-            for clause_idx, clause_text in enumerate(clause_chunks, start=1):
+            for clause_num, clause_text in clause_chunks:
                 clause_text = self._normalize_legal_text(clause_text.strip())
                 if not clause_text:
                     continue
 
-                # LUÔN thử tách theo point trước
+                # Luôn thử tách theo điểm trước
                 point_chunks = self._split_by_letter_points(clause_text)
 
                 if len(point_chunks) > 1:
-                    for point_idx, point_text in enumerate(point_chunks, start=1):
+                    for point_label, point_text in point_chunks:
                         point_text = self._normalize_legal_text(point_text.strip())
                         if not point_text:
                             continue
@@ -72,39 +83,48 @@ class LegalChunkRefiner:
                         if len(point_text) <= self.max_chars:
                             temp_parts.append({
                                 "text": point_text,
-                                "sub_unit": f"clause_{clause_idx}_point_{point_idx}"
+                                "don_vi_con": f"khoản_{clause_num}_điểm_{point_label}" if point_label else f"khoản_{clause_num}",
+                                "khoan": clause_num,
+                                "diem": point_label or None,
                             })
                         else:
                             windows = self._split_by_size_smart(point_text)
                             for win_idx, win_text in enumerate(windows, start=1):
                                 temp_parts.append({
                                     "text": win_text,
-                                    "sub_unit": f"clause_{clause_idx}_point_{point_idx}_window_{win_idx}"
+                                    "don_vi_con": f"khoản_{clause_num}_điểm_{point_label}_cửa_sổ_{win_idx}" if point_label else f"khoản_{clause_num}_cửa_sổ_{win_idx}",
+                                    "khoan": clause_num,
+                                    "diem": point_label or None,
                                 })
-
                     continue
 
-                # Nếu không tách được point thì mới xét giữ nguyên clause
+                # Nếu không có điểm thì giữ nguyên khoản nếu đủ ngắn
                 if len(clause_text) <= self.max_chars:
                     temp_parts.append({
                         "text": clause_text,
-                        "sub_unit": f"clause_{clause_idx}"
+                        "don_vi_con": f"khoản_{clause_num}",
+                        "khoan": clause_num,
+                        "diem": None,
                     })
                 else:
                     windows = self._split_by_size_smart(clause_text)
                     for win_idx, win_text in enumerate(windows, start=1):
                         temp_parts.append({
                             "text": win_text,
-                            "sub_unit": f"clause_{clause_idx}_window_{win_idx}"
+                            "don_vi_con": f"khoản_{clause_num}_cửa_sổ_{win_idx}",
+                            "khoan": clause_num,
+                            "diem": None,
                         })
 
             for i, part in enumerate(temp_parts, start=1):
                 refined.append(self._build_refined_chunk(
                     text=part["text"],
                     metadata=metadata,
-                    chunk_index=i,
-                    chunk_total=len(temp_parts),
-                    sub_unit=part["sub_unit"]
+                    chi_so_chunk=i,
+                    tong_so_chunk=len(temp_parts),
+                    don_vi_con=part["don_vi_con"],
+                    khoan=part["khoan"],
+                    diem=part["diem"],
                 ))
 
         return refined
@@ -113,12 +133,14 @@ class LegalChunkRefiner:
         """
         Normalize OCR/legal text to make structural splitting easier.
         """
-
         text = text.replace("\r\n", "\n").replace("\r", "\n")
 
         # Chuẩn hóa khoảng trắng
         text = re.sub(r"[ \t]+", " ", text)
         text = re.sub(r"\n{3,}", "\n\n", text)
+
+        # Sửa một vài lỗi OCR phổ biến
+        text = re.sub(r"\bĐ\s*i\s*ề\s*u\b", "Điều", text, flags=re.IGNORECASE)
 
         # Ép xuống dòng trước khoản 1. 2. 3. nếu OCR dính vào giữa dòng
         text = re.sub(r'(?<!\n)(\s)(\d+\.\s+)', r'\n\2', text)
@@ -131,7 +153,7 @@ class LegalChunkRefiner:
 
         return text.strip()
 
-    def _split_by_clause(self, article_text: str) -> List[str]:
+    def _split_by_clause(self, article_text: str) -> List[Tuple[int, str]]:
         """
         Split article text by numbered clauses at line starts:
         1.
@@ -142,7 +164,7 @@ class LegalChunkRefiner:
 
         first_newline = article_text.find("\n")
         if first_newline == -1:
-            return [article_text]
+            return []
 
         article_title = article_text[:first_newline].strip()
         body = article_text[first_newline + 1:].strip()
@@ -154,19 +176,20 @@ class LegalChunkRefiner:
             )
         )
         if not matches:
-            return [article_text]
+            return []
 
-        chunks = []
+        chunks: List[Tuple[int, str]] = []
         for i, match in enumerate(matches):
             start = match.start()
             end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
+            clause_num = int(match.group(1))
             clause_text = body[start:end].strip()
             combined = f"{article_title}\n\n{clause_text}".strip()
-            chunks.append(combined)
+            chunks.append((clause_num, combined))
 
         return chunks
 
-    def _split_by_letter_points(self, text: str) -> List[str]:
+    def _split_by_letter_points(self, text: str) -> List[Tuple[Optional[str], str]]:
         """
         Split by legal points:
         a)
@@ -178,7 +201,7 @@ class LegalChunkRefiner:
 
         first_newline = text.find("\n")
         if first_newline == -1:
-            return [text]
+            return [(None, text)]
 
         header = text[:first_newline].strip()
         body = text[first_newline + 1:].strip()
@@ -191,15 +214,21 @@ class LegalChunkRefiner:
             )
         )
         if not matches:
-            return [text]
+            return [(None, text)]
 
-        chunks = []
+        chunks: List[Tuple[Optional[str], str]] = []
+
+        # Phần trước điểm a), nếu có
+        if body[:matches[0].start()].strip():
+            chunks.append((None, f"{header}\n\n{body[:matches[0].start()].strip()}"))
+
         for i, match in enumerate(matches):
             start = match.start()
             end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
+            point_label = match.group(1).lower()
             point_text = body[start:end].strip()
             combined = f"{header}\n\n{point_text}".strip()
-            chunks.append(combined)
+            chunks.append((point_label, combined))
 
         return chunks
 
@@ -231,7 +260,6 @@ class LegalChunkRefiner:
 
             cut = None
 
-            # ưu tiên cắt ở ranh giới đẹp gần cuối window
             candidates = [
                 "\n\n",
                 "\n",
@@ -255,7 +283,6 @@ class LegalChunkRefiner:
             if part:
                 parts.append(part)
 
-            # overlap nhưng phải bắt đầu ở ranh giới từ
             new_start = max(cut - self.overlap_chars, 0)
             while new_start > 0 and new_start < n and not text[new_start].isspace():
                 new_start -= 1
@@ -271,14 +298,26 @@ class LegalChunkRefiner:
         self,
         text: str,
         metadata: Dict[str, Any],
-        chunk_index: int,
-        chunk_total: int,
-        sub_unit: str,
+        chi_so_chunk: int,
+        tong_so_chunk: int,
+        don_vi_con: str,
+        khoan: Optional[int],
+        diem: Optional[str],
     ) -> Dict[str, Any]:
         new_metadata = dict(metadata)
-        new_metadata["chunk_index"] = chunk_index
-        new_metadata["chunk_total"] = chunk_total
-        new_metadata["sub_unit"] = sub_unit
+        new_metadata["chi_so_chunk"] = chi_so_chunk
+        new_metadata["tong_so_chunk"] = tong_so_chunk
+        new_metadata["don_vi_con"] = don_vi_con
+
+        if khoan is not None:
+            new_metadata["khoan"] = int(khoan)
+        else:
+            new_metadata["khoan"] = ""
+
+        if diem is not None:
+            new_metadata["diem"] = str(diem)
+        else:
+            new_metadata["diem"] = ""
 
         return {
             "text": text.strip(),

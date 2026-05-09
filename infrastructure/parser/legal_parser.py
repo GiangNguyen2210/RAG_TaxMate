@@ -3,50 +3,41 @@ from typing import List, Dict, Any, Optional
 
 
 class LegalDocumentParser:
+    """
+    Parser văn bản pháp luật cho TaxMate.
+
+    Output metadata dùng tiếng Việt:
+    - ten_van_ban
+    - ma_van_ban
+    - loai_van_ban
+    - chuong
+    - dieu
+    - tieu_de_dieu
+    - trang_bat_dau
+    - cap_ban_hanh
+    - loai_noi_dung
+    """
+
     def parse_articles(
         self,
         page_docs: List[Dict[str, Any]],
-        document_name: str,
-        document_id: str,
-        document_type: str = "legal_document",
-        authority_level: str = "primary",
-        stop_at_appendix: bool = True,
+        ten_van_ban: str,
+        ma_van_ban: str,
+        loai_van_ban: str = "văn_bản_pháp_luật",
+        cap_ban_hanh: str = "không_xác_định",
+        dung_truoc_phu_luc: bool = True,
     ) -> List[Dict[str, Any]]:
         """
-        Parse phần nội dung chính của văn bản pháp luật theo Điều.
+        Parse phần nội dung chính theo Điều.
 
         Hỗ trợ:
         - Luật có Chương
-        - Nghị định không có Chương
-        - Có thể dừng trước phần Phụ lục / Biểu mẫu
-
-        Input:
-            [
-              {"text": "...", "metadata": {"page": 1, "source": "..."}},
-              ...
-            ]
-
-        Output:
-            [
-              {
-                "text": "...",
-                "metadata": {
-                  "document_name": "...",
-                  "document_id": "...",
-                  "document_type": "...",
-                  "chapter": "... | None",
-                  "article": 1,
-                  "article_title": "Điều 1. ...",
-                  "page_start": 1,
-                  "authority_level": "primary",
-                  "section_type": "main_text"
-                }
-              }
-            ]
+        - Nghị định / Thông tư không có Chương
+        - Có thể dừng trước Phụ lục / Mẫu biểu
         """
         full_text, article_page_map = self._merge_pages_with_article_mapping(page_docs)
 
-        if stop_at_appendix:
+        if dung_truoc_phu_luc:
             full_text = self._truncate_before_appendix(full_text)
 
         chapters = self._extract_chapter_positions(full_text)
@@ -59,15 +50,15 @@ class LegalDocumentParser:
             chunk_docs.append({
                 "text": article["text"],
                 "metadata": {
-                    "document_name": str(document_name),
-                    "document_id": str(document_id),
-                    "document_type": str(document_type),
-                    "chapter": str(chapter_name) if chapter_name is not None else "",
-                    "article": int(article["article_number"]),
-                    "article_title": str(article["article_title"]),
-                    "page_start": int(article_page_map.get(article["article_number"], -1)),
-                    "authority_level": str(authority_level),
-                    "section_type": "main_text",
+                    "ten_van_ban": str(ten_van_ban),
+                    "ma_van_ban": str(ma_van_ban),
+                    "loai_van_ban": str(loai_van_ban),
+                    "chuong": str(chapter_name) if chapter_name is not None else "",
+                    "dieu": int(article["article_number"]),
+                    "tieu_de_dieu": str(article["article_title"]),
+                    "trang_bat_dau": int(article_page_map.get(article["article_number"], -1)),
+                    "cap_ban_hanh": str(cap_ban_hanh),
+                    "loai_noi_dung": "nội_dung_chính",
                 }
             })
 
@@ -76,20 +67,18 @@ class LegalDocumentParser:
     def parse_appendices(
         self,
         page_docs: List[Dict[str, Any]],
-        document_name: str,
-        document_id: str,
-        document_type: str = "legal_document_appendix",
-        authority_level: str = "primary",
+        ten_van_ban: str,
+        ma_van_ban: str,
+        loai_van_ban: str = "phụ_lục_văn_bản",
+        cap_ban_hanh: str = "không_xác_định",
     ) -> List[Dict[str, Any]]:
         """
         Parse phần phụ lục / biểu mẫu / danh sách biểu mẫu.
 
-        Đây là parser đơn giản theo block bắt đầu bằng:
+        Tách block theo:
         - Phụ lục
         - Danh sách các biểu mẫu
         - Mẫu số
-
-        Dùng cho các trang cuối của nghị định có form/table.
         """
         full_text, _ = self._merge_pages_with_article_mapping(page_docs)
 
@@ -107,13 +96,13 @@ class LegalDocumentParser:
             results.append({
                 "text": block,
                 "metadata": {
-                    "document_name": document_name,
-                    "document_id": document_id,
-                    "document_type": document_type,
-                    "appendix_index": idx,
-                    "appendix_title": title,
-                    "authority_level": authority_level,
-                    "section_type": "appendix",
+                    "ten_van_ban": ten_van_ban,
+                    "ma_van_ban": ma_van_ban,
+                    "loai_van_ban": loai_van_ban,
+                    "chi_so_phu_luc": idx,
+                    "tieu_de_phu_luc": title,
+                    "cap_ban_hanh": cap_ban_hanh,
+                    "loai_noi_dung": "phụ_lục",
                 }
             })
 
@@ -127,7 +116,7 @@ class LegalDocumentParser:
             text = self._clean_text(doc.get("text", ""))
             page = doc.get("metadata", {}).get("page")
 
-            found_articles = re.findall(r"Điều\s+(\d+)\.", text)
+            found_articles = re.findall(r"Đi.{0,2}u\s+(\d+)\.", text, flags=re.IGNORECASE)
             for num in found_articles:
                 num_int = int(num)
                 if num_int not in article_page_map:
@@ -143,13 +132,16 @@ class LegalDocumentParser:
         text = re.sub(r"[ \t]+", " ", text)
         text = re.sub(r"\n{3,}", "\n\n", text)
         text = re.sub(r"\s+([,.;:])", r"\1", text)
+
+        # Chống lỗi OCR / PDF scan làm dính chữ "Điều"
+        text = re.sub(r"\bĐ\s*i\s*ề\s*u\b", "Điều", text, flags=re.IGNORECASE)
+
         return text.strip()
 
     def _extract_chapter_positions(self, full_text: str):
         """
         Chương là optional.
-        Nếu có thì map vào article.
-        Nếu không có thì chapter = None.
+        Nếu có thì map vào Điều.
         """
         patterns = [
             r"(Chương\s+[IVXLC]+\s*\n+[A-ZÀ-Ỹ0-9 ,\-/()]+)",
@@ -158,7 +150,7 @@ class LegalDocumentParser:
 
         chapters = []
         for pattern in patterns:
-            for match in re.finditer(pattern, full_text):
+            for match in re.finditer(pattern, full_text, flags=re.IGNORECASE):
                 raw = match.group(1).strip()
                 normalized = re.sub(r"\s*\n+\s*", " - ", raw)
                 chapters.append({
@@ -166,7 +158,6 @@ class LegalDocumentParser:
                     "start_idx": match.start()
                 })
 
-        # deduplicate theo start_idx
         seen = set()
         unique_chapters = []
         for c in sorted(chapters, key=lambda x: x["start_idx"]):
@@ -180,12 +171,13 @@ class LegalDocumentParser:
         """
         Tách theo Điều.
 
-        Pattern này đủ linh hoạt cho:
+        Pattern linh hoạt cho:
         - Điều 1. Phạm vi điều chỉnh
         - Điều 1. Sửa đổi, bổ sung...
+        - Một số lỗi OCR nhẹ quanh chữ "Điều"
         """
         pattern = r"(Đi.{0,2}u\s+(\d+)\.\s*([^\n]+))"
-        matches = list(re.finditer(pattern, full_text))
+        matches = list(re.finditer(pattern, full_text, flags=re.IGNORECASE))
 
         articles = []
         for i, match in enumerate(matches):
@@ -220,8 +212,10 @@ class LegalDocumentParser:
         """
         appendix_patterns = [
             r"\nPhụ lục\b",
+            r"\nPHỤ LỤC\b",
             r"\nDANH SÁCH CÁC BIỂU MẪU\b",
             r"\nDanh sách các biểu mẫu\b",
+            r"\nMẫu số\s*[: ]",
             r"\nMẫu số\s+\d+",
         ]
 
@@ -241,12 +235,9 @@ class LegalDocumentParser:
 
     def _split_appendix_blocks(self, appendix_text: str) -> List[str]:
         """
-        Tách phụ lục thành các block theo:
-        - Phụ lục
-        - Mẫu số ...
-        - Danh sách các biểu mẫu ...
+        Tách phụ lục thành block.
         """
-        pattern = r"(?=(Phụ lục\b|Mẫu số[: ]|DANH SÁCH CÁC BIỂU MẪU\b|Danh sách các biểu mẫu\b))"
+        pattern = r"(?=(Phụ lục\b|PHỤ LỤC\b|Mẫu số[: ]|Mẫu số\s+\d+|DANH SÁCH CÁC BIỂU MẪU\b|Danh sách các biểu mẫu\b))"
         parts = re.split(pattern, appendix_text, flags=re.IGNORECASE)
 
         blocks = []
@@ -257,7 +248,11 @@ class LegalDocumentParser:
             if not part:
                 continue
 
-            if re.match(r"^(Phụ lục\b|Mẫu số[: ]|DANH SÁCH CÁC BIỂU MẪU\b|Danh sách các biểu mẫu\b)", part, flags=re.IGNORECASE):
+            if re.match(
+                r"^(Phụ lục\b|PHỤ LỤC\b|Mẫu số[: ]|Mẫu số\s+\d+|DANH SÁCH CÁC BIỂU MẪU\b|Danh sách các biểu mẫu\b)",
+                part,
+                flags=re.IGNORECASE
+            ):
                 if current:
                     blocks.append(current.strip())
                 current = part
@@ -272,5 +267,5 @@ class LegalDocumentParser:
     def _extract_appendix_title(self, block_text: str) -> str:
         lines = [line.strip() for line in block_text.splitlines() if line.strip()]
         if not lines:
-            return "Appendix"
+            return "Phụ lục"
         return lines[0][:200]
