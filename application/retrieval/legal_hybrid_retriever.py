@@ -579,26 +579,13 @@ class TaxLegalHybridRetriever:
         seen = {self._chunk_key(c) for c in retrieved_chunks}
         expanded = list(retrieved_chunks)
 
-        expansion_targets = []
-
         if qinfo.dieu is not None and qinfo.khoan is not None:
-            expansion_targets.append({
+            expansion_targets = [{
                 "dieu": qinfo.dieu,
                 "khoan": qinfo.khoan,
-            })
-
-        for chunk in retrieved_chunks:
-            meta = chunk.metadata
-            dieu = meta.get("dieu")
-            khoan = meta.get("khoan")
-
-            if dieu in (None, "") or khoan in (None, "", 0):
-                continue
-
-            expansion_targets.append({
-                "dieu": dieu,
-                "khoan": khoan,
-            })
+            }]
+        else:
+            return retrieved_chunks
 
         unique_targets = []
         seen_targets = set()

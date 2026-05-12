@@ -130,10 +130,12 @@ class RAGPipeline:
             print("\n=== FINAL CONTEXT SENT TO LLM ===")
             print(context[:3000])
 
-        answer = self.llm.generate_answer(
-            question=question,
-            context=context,
-        )
+        # answer = self.llm.generate_answer(
+        #     question=question,
+        #     context=context,
+        # )
+
+        answer = "Đây là câu trả lời giả định từ LLM dựa trên ngữ cảnh đã cho. Câu trả lời thực tế sẽ được tạo ra bởi mô hình Gemini của Google dựa trên câu hỏi và ngữ cảnh pháp lý được cung cấp."
 
         if self.debug:
             print("\n=== ANSWER FROM LLM ===")
