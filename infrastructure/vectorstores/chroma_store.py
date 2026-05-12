@@ -95,6 +95,8 @@ class ChromaStore:
         where: Optional[Dict[str, Any]] = None,
         where_document: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
+        where = self._normalize_where(where)
+
         result = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=k,
@@ -106,10 +108,14 @@ class ChromaStore:
 
     def get_by_metadata(
         self,
-        where: Dict[str, Any],
+        where: Optional[Dict[str, Any]] = None,
         limit: int = 10,
         offset: int = 0,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
+        where = where if where is not None else filters
+        where = self._normalize_where(where)
+
         result = self.collection.get(
             where=where,
             limit=limit,
@@ -159,6 +165,28 @@ class ChromaStore:
             offset += batch_size
 
         return all_docs
+
+    @staticmethod
+    def _normalize_where(where: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        Chroma requires multi-field filters to use $and.
+        Example:
+            {"dieu": 5, "khoan": 2}
+        becomes:
+            {"$and": [{"dieu": 5}, {"khoan": 2}]}
+        """
+        if not where:
+            return None
+
+        if any(str(k).startswith("$") for k in where.keys()):
+            return where
+
+        if len(where) == 1:
+            return where
+
+        return {
+            "$and": [{k: v} for k, v in where.items()]
+        }
 
     def _map_query_result(self, result: Dict[str, Any]) -> List[Dict[str, Any]]:
         docs = result.get("documents", [[]])[0]

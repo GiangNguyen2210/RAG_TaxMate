@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -7,6 +8,7 @@ from application.retrieval.query_analyzer import analyze_query, QueryInfo
 from application.retrieval.bm25_retriever import BM25Retriever
 from infrastructure.vectorstores.chroma_store import ChromaStore
 from infrastructure.embeddings.collab_embedder import ColabEmbedder
+from application.retrieval.reranker import Reranker
 
 
 @dataclass
@@ -38,7 +40,7 @@ class TaxLegalHybridRetriever:
     4. BM25 lexical retrieval.
     5. Dense retrieval through Chroma + ColabEmbedder.
     6. RRF fusion + rule boosts.
-    7. Sibling expansion: add nearby Khoản in the same Điều.
+    7. Sibling expansion: attach all chunks in the same Điều/Khoản when needed.
     """
 
     def __init__(
@@ -49,12 +51,24 @@ class TaxLegalHybridRetriever:
         rrf_k: int = 60,
         candidates_per_retriever: int = 20,
         sibling_neighbors: int = 1,
+        sibling_expand_limit: int = 30,
+        enable_reranker: bool | None = None,
+        reranker: Optional[Reranker] = None,
+        rerank_top_k: int | None = None,
     ):
         self.vectorstore = vectorstore or ChromaStore()
         self.embedder = embedder or ColabEmbedder()
         self.rrf_k = rrf_k
         self.candidates_per_retriever = candidates_per_retriever
         self.sibling_neighbors = sibling_neighbors
+        self.sibling_expand_limit = sibling_expand_limit
+
+        if enable_reranker is None:
+            enable_reranker = os.getenv("RAG_ENABLE_RERANKER", "false").lower() == "true"
+
+        self.enable_reranker = enable_reranker
+        self.rerank_top_k = rerank_top_k or int(os.getenv("RAG_RERANK_TOP_K", "5"))
+        self.reranker = reranker or (Reranker() if self.enable_reranker else None)
 
         if bm25_retriever is None:
             all_docs = self.vectorstore.get_all_documents()
@@ -95,7 +109,30 @@ class TaxLegalHybridRetriever:
         )
 
         enriched = self._attach_siblings(fused, qinfo)
-        final = enriched[:top_k]
+
+        # Attach legal siblings, especially all Điểm under the same Khoản.
+        expanded = self._expand_sibling_chunks(
+            retrieved_chunks=enriched,
+            qinfo=qinfo,
+            filters=filters,
+            max_expand=self.sibling_expand_limit,
+        )
+
+        # Do not cut too early when the user asks a specific Điều/Khoản,
+        # because the answer may need all Điểm under that Khoản.
+        final_limit = self._final_limit(top_k=top_k, qinfo=qinfo, expanded_count=len(expanded))
+
+        # Reranker is useful for broad/semantic queries.
+        # For explicit Điều + Khoản queries, keep hierarchy-expanded chunks intact
+        # so all Điểm under that Khoản are not accidentally removed.
+        if self.enable_reranker and self.reranker is not None and not self._should_skip_rerank(qinfo):
+            final = self.reranker.rerank(
+                query=question,
+                chunks=expanded,
+                top_k=min(self.rerank_top_k, final_limit),
+            )
+        else:
+            final = expanded[:final_limit]
 
         if debug:
             self._debug_print(qinfo, structured, exact, bm25, dense, final)
@@ -143,7 +180,18 @@ class TaxLegalHybridRetriever:
         if qinfo.dieu is not None:
             where_dieu = dict(where)
             where_dieu["dieu"] = qinfo.dieu
-            docs.extend(self.vectorstore.get_by_metadata(where=where_dieu, limit=20))
+            docs.extend(self.vectorstore.get_by_metadata(where=where_dieu, limit=30))
+
+            if qinfo.khoan is not None:
+                where_khoan = dict(where_dieu)
+                where_khoan["khoan"] = qinfo.khoan
+                docs.extend(self.vectorstore.get_by_metadata(where=where_khoan, limit=30))
+
+            if qinfo.khoan is not None and qinfo.diem is not None:
+                where_diem = dict(where_khoan)
+                where_diem["diem"] = qinfo.diem
+                docs.extend(self.vectorstore.get_by_metadata(where=where_diem, limit=10))
+
             return [self._to_chunk(d, score=1.0, source="structured") for d in docs]
 
         if qinfo.loai_van_ban:
@@ -170,9 +218,11 @@ class TaxLegalHybridRetriever:
             phrases.append(f"Điều {qinfo.dieu}")
 
         if qinfo.khoan is not None:
+            phrases.append(f"Khoản {qinfo.khoan}")
             phrases.append(f"khoản {qinfo.khoan}")
 
         if qinfo.diem is not None:
+            phrases.append(f"Điểm {qinfo.diem}")
             phrases.append(f"điểm {qinfo.diem}")
 
         for phrase in phrases:
@@ -264,11 +314,17 @@ class TaxLegalHybridRetriever:
         title = str(meta.get("tieu_de_dieu", "")).lower()
         boost = 0.0
 
-        if qinfo.dieu is not None and meta.get("dieu") == qinfo.dieu:
-            boost += 0.20
+        if qinfo.dieu is not None:
+            if meta.get("dieu") == qinfo.dieu:
+                boost += 0.35
+            else:
+                boost -= 0.08
 
-        if qinfo.khoan is not None and str(meta.get("khoan", "")) == str(qinfo.khoan):
-            boost += 0.15
+        if qinfo.khoan is not None:
+            if str(meta.get("khoan", "")) == str(qinfo.khoan):
+                boost += 0.25
+            elif meta.get("dieu") == qinfo.dieu and meta.get("khoan") in (None, ""):
+                boost += 0.04
 
         if qinfo.diem is not None and str(meta.get("diem", "")).lower() == str(qinfo.diem).lower():
             boost += 0.10
@@ -369,6 +425,10 @@ class TaxLegalHybridRetriever:
     @staticmethod
     def _chunk_key(chunk: RetrievedChunk) -> str:
         meta = chunk.metadata
+
+        if meta.get("chunk_id"):
+            return str(meta.get("chunk_id"))
+
         if chunk.id:
             return str(chunk.id)
 
@@ -492,3 +552,200 @@ class TaxLegalHybridRetriever:
             )
             print((c.text or "")[:250].replace("\n", " "))
             print("---")
+
+    def _expand_sibling_chunks(
+        self,
+        retrieved_chunks: List[RetrievedChunk],
+        qinfo: QueryInfo,
+        filters: Dict[str, Any],
+        max_expand: int = 30,
+    ) -> List[RetrievedChunk]:
+        """
+        Legal hierarchy expansion.
+
+        Main case:
+        - Query: "Khoản 2 Điều 5 quy định gì"
+        - If anchor contains dieu=5, khoan=2
+        - Attach all chunks with dieu=5 and khoan=2, including điểm a,b,c,d,đ,e.
+
+        This method works on RetrievedChunk, not dict.
+        """
+        if not retrieved_chunks:
+            return []
+
+        if qinfo.khoan is None:
+            return retrieved_chunks
+        
+        seen = {self._chunk_key(c) for c in retrieved_chunks}
+        expanded = list(retrieved_chunks)
+
+        expansion_targets = []
+
+        if qinfo.dieu is not None and qinfo.khoan is not None:
+            expansion_targets.append({
+                "dieu": qinfo.dieu,
+                "khoan": qinfo.khoan,
+            })
+
+        for chunk in retrieved_chunks:
+            meta = chunk.metadata
+            dieu = meta.get("dieu")
+            khoan = meta.get("khoan")
+
+            if dieu in (None, "") or khoan in (None, "", 0):
+                continue
+
+            expansion_targets.append({
+                "dieu": dieu,
+                "khoan": khoan,
+            })
+
+        unique_targets = []
+        seen_targets = set()
+        for target in expansion_targets:
+            key = (str(target["dieu"]), str(target["khoan"]))
+            if key in seen_targets:
+                continue
+            seen_targets.add(key)
+            unique_targets.append(target)
+
+        base_where = self._base_where(filters)
+
+        for target in unique_targets:
+            where = dict(base_where)
+            where["dieu"] = target["dieu"]
+            where["khoan"] = target["khoan"]
+
+            sibling_docs = self.vectorstore.get_by_metadata(
+                where=where,
+                limit=max_expand,
+            )
+
+            sibling_chunks = [
+                self._to_chunk(d, score=0.0, source="sibling_expand")
+                for d in sibling_docs
+            ]
+
+            sibling_chunks.sort(key=self._legal_order_key)
+
+            for sibling in sibling_chunks:
+                key = self._chunk_key(sibling)
+                if key in seen:
+                    continue
+
+                sibling.score = self._sibling_score(sibling, qinfo)
+                sibling.retrieval_source = "sibling_expand"
+                sibling.metadata["la_ngu_canh_bo_sung"] = True
+
+                expanded.append(sibling)
+                seen.add(key)
+
+        expanded.sort(key=self._final_sort_key, reverse=True)
+        return expanded
+
+    def _sibling_score(self, chunk: RetrievedChunk, qinfo: QueryInfo) -> float:
+        meta = chunk.metadata
+        score = 0.18
+
+        if qinfo.dieu is not None and meta.get("dieu") == qinfo.dieu:
+            score += 0.10
+
+        if qinfo.khoan is not None and str(meta.get("khoan", "")) == str(qinfo.khoan):
+            score += 0.10
+
+        if meta.get("level") == 2:
+            score += 0.03
+
+        if meta.get("level") == 3:
+            score += 0.02
+
+        return score
+
+    def _final_sort_key(self, chunk: RetrievedChunk) -> Tuple[float, int, int, str]:
+        """
+        Score first, then legal hierarchy level, then legal order.
+        """
+        level = chunk.metadata.get("level")
+        try:
+            level_int = int(level) if level not in (None, "") else 99
+        except (TypeError, ValueError):
+            level_int = 99
+
+        return (
+            float(chunk.score),
+            -level_int,
+            -self._legal_order_number(chunk),
+            str(chunk.metadata.get("diem", "")),
+        )
+
+    def _legal_order_key(self, chunk: RetrievedChunk) -> Tuple[int, int, int, int]:
+        meta = chunk.metadata
+
+        try:
+            level = int(meta.get("level", 99))
+        except (TypeError, ValueError):
+            level = 99
+
+        try:
+            khoan = int(meta.get("khoan", 0)) if meta.get("khoan") not in (None, "") else 0
+        except (TypeError, ValueError):
+            khoan = 0
+
+        point_order = self._point_order(str(meta.get("diem", "")))
+
+        try:
+            chunk_index = int(meta.get("chi_so_chunk", 0))
+        except (TypeError, ValueError):
+            chunk_index = 0
+
+        return (khoan, level, point_order, chunk_index)
+
+    def _legal_order_number(self, chunk: RetrievedChunk) -> int:
+        meta = chunk.metadata
+
+        try:
+            khoan = int(meta.get("khoan", 0)) if meta.get("khoan") not in (None, "") else 0
+        except (TypeError, ValueError):
+            khoan = 0
+
+        return khoan * 100 + self._point_order(str(meta.get("diem", "")))
+
+    @staticmethod
+    def _point_order(diem: str) -> int:
+        order = {
+            "": 0,
+            "a": 1,
+            "b": 2,
+            "c": 3,
+            "d": 4,
+            "đ": 5,
+            "e": 6,
+            "g": 7,
+            "h": 8,
+            "i": 9,
+            "k": 10,
+            "l": 11,
+            "m": 12,
+            "n": 13,
+        }
+        return order.get((diem or "").lower(), 99)
+
+    @staticmethod
+    def _should_skip_rerank(qinfo: QueryInfo) -> bool:
+        """
+        Skip reranking for highly structured legal lookup.
+
+        Reason:
+        - Query like "Khoản 2 Điều 5" needs all sibling Điểm.
+        - Reranker may keep only 5 chunks and accidentally drop Điểm c/đ/e.
+        """
+        return qinfo.dieu is not None and qinfo.khoan is not None
+
+    def _final_limit(self, top_k: int, qinfo: QueryInfo, expanded_count: int) -> int:
+        if qinfo.dieu is not None and qinfo.khoan is not None:
+            return min(max(top_k, 12), expanded_count)
+
+        if qinfo.dieu is not None:
+            return min(max(top_k, 8), expanded_count)
+
+        return min(top_k, expanded_count)
