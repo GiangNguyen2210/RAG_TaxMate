@@ -79,6 +79,36 @@ class TaxLegalHybridRetriever:
         self._all_docs_cache = getattr(self.bm25, "docs", [])
         self._location_index = self._build_location_index(self._all_docs_cache)
 
+    def _post_rerank_legal_priority(
+        self,
+        question: str,
+        chunks: List[RetrievedChunk],
+    ) -> List[RetrievedChunk]:
+        q = (question or "").lower()
+
+        if "miễn tiền chậm nộp" not in q:
+            return chunks
+
+        def priority_key(chunk: RetrievedChunk):
+            meta = chunk.metadata
+            dieu = meta.get("dieu")
+            khoan = str(meta.get("khoan", ""))
+
+            priority = 0
+
+            if dieu == 16 and khoan == "5":
+                priority += 100
+
+            elif dieu == 16:
+                priority += 80
+
+            elif dieu == 21:
+                priority += 20
+
+            return (priority, chunk.score)
+
+        return sorted(chunks, key=priority_key, reverse=True)
+
     def retrieve(
         self,
         question: str,
@@ -131,6 +161,7 @@ class TaxLegalHybridRetriever:
                 chunks=expanded,
                 top_k=min(self.rerank_top_k, final_limit),
             )
+            final = self._post_rerank_legal_priority(question, final)
         else:
             final = expanded[:final_limit]
 
@@ -314,6 +345,8 @@ class TaxLegalHybridRetriever:
         title = str(meta.get("tieu_de_dieu", "")).lower()
         boost = 0.0
 
+        query_text = " ".join(qinfo.cum_tu_chinh_xac).lower()
+
         if qinfo.dieu is not None:
             if meta.get("dieu") == qinfo.dieu:
                 boost += 0.35
@@ -340,6 +373,25 @@ class TaxLegalHybridRetriever:
                 boost += 0.08
             if phrase in title:
                 boost += 0.10
+
+        # Legal phrase-specific prioritization
+        if "miễn tiền chậm nộp" in query_text:
+            if "miễn tiền chậm nộp" in text:
+                boost += 0.25
+
+            if "miễn tiền chậm nộp" in title:
+                boost += 0.30
+
+            # Khoản 5 Điều 16 là căn cứ trực tiếp hơn cho câu hỏi miễn tiền chậm nộp
+            if meta.get("dieu") == 16:
+                boost += 0.30
+
+            if meta.get("dieu") == 16 and str(meta.get("khoan", "")) == "5":
+                boost += 0.40
+
+            # Điều 21 có liên quan, nhưng không nên vượt căn cứ trực tiếp Điều 16
+            if meta.get("dieu") == 21:
+                boost -= 0.20
 
         return boost
 

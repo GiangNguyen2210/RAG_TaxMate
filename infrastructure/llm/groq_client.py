@@ -1,20 +1,30 @@
+# infrastructure/llm/groq_client.py
+
+from openai import OpenAI
 import os
-from typing import Optional
-from google import genai
-from dotenv import load_dotenv
 
-load_dotenv()
+class GroqClient:
+    def __init__(self):
+        self.client = OpenAI(
+            api_key=os.getenv("GROQ_API_KEY"),
+            base_url="https://api.groq.com/openai/v1"
+        )
 
+    def chat(self, prompt: str):
+        response = self.client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.2,
+        )
 
-class GeminiClient:
-    def __init__(self, model: Optional[str] = None):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if not self.api_key:
-            raise ValueError("Missing GEMINI_API_KEY in environment.")
-
-        self.model = model or os.getenv("GEMINI_LLM_MODEL", "gemini-2.5-flash")
-        self.client = genai.Client(api_key=self.api_key)
-
+        return response.choices[0].message.content
+    
+    
     def generate_answer(self, question: str, context: str) -> str:
         prompt = f"""
     Bạn là trợ lý pháp lý AI chuyên về pháp luật thuế Việt Nam.
@@ -73,6 +83,13 @@ class GeminiClient:
     - ưu tiên nguồn trực tiếp nhất với câu hỏi.
     - không đưa nguồn phụ vào câu trả lời nếu không cần thiết.
 
+    10. Phân loại nguồn pháp lý:
+    - "Căn cứ trực tiếp": điều/khoản/điểm trả lời thẳng vào câu hỏi.
+    - "Nguồn liên quan": điều/khoản/điểm chỉ bổ sung, giải thích hoặc liên hệ.
+    - Khi trả lời, luôn ưu tiên căn cứ trực tiếp trước.
+    - Không biến nguồn liên quan thành căn cứ chính.
+    - Nếu dùng nguồn liên quan, hãy ghi rõ: "Ngoài ra, nguồn liên quan..."
+
     QUESTION:
     {question}
 
@@ -82,9 +99,15 @@ class GeminiClient:
     TRẢ LỜI:
     """.strip()
 
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=prompt,
+        response = self.client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.2,
         )
 
-        return (response.text or "").strip()
+        return response.choices[0].message.content.strip()

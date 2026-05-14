@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from infrastructure.embeddings.collab_embedder import ColabEmbedder
 from infrastructure.vectorstores.chroma_store import ChromaStore
 from infrastructure.llm.gemini_client import GeminiClient
+from infrastructure.llm.groq_client import GroqClient
 
 from application.retrieval.bm25_retriever import BM25Retriever
 from application.retrieval.legal_hybrid_retriever import TaxLegalHybridRetriever
@@ -32,7 +33,8 @@ class RAGPipeline:
     def __init__(self):
         self.embedder = ColabEmbedder()
         self.vectorstore = ChromaStore()
-        self.llm = GeminiClient()
+        # self.llm = GeminiClient()
+        self.llm = GroqClient()
 
         self.top_k = int(os.getenv("RAG_TOP_K", "5"))
         self.max_context_chars = int(os.getenv("RAG_MAX_CONTEXT_CHARS", "12000"))
@@ -53,56 +55,37 @@ class RAGPipeline:
         context_parts = []
         total_chars = 0
 
-        for i, item in enumerate(retrieved_docs, start=1):
+        for item in retrieved_docs:
             meta = item.get("metadata", {})
-            text = (item.get("text") or item.get("content") or "").strip()
+            text = (item.get("text") or "").strip()
 
             if not text:
                 continue
 
-            ten_van_ban = meta.get("ten_van_ban", "không_xác_định")
-            ma_van_ban = meta.get("ma_van_ban", "không_xác_định")
-            loai_van_ban = meta.get("loai_van_ban", "")
-            co_quan_ban_hanh = meta.get("co_quan_ban_hanh", "")
-            ngay_hieu_luc = meta.get("ngay_hieu_luc", "")
-            trang_thai = meta.get("trang_thai_hieu_luc", "")
+            ten_van_ban = meta.get("ten_van_ban", "Không rõ văn bản")
 
-            chuong = meta.get("chuong", "")
-            dieu = meta.get("dieu", "")
-            khoan = meta.get("khoan", "")
-            diem = meta.get("diem", "")
-            tieu_de_dieu = meta.get("tieu_de_dieu", "")
-            trang_bat_dau = meta.get("trang_bat_dau", "")
+            dieu = meta.get("dieu")
+            khoan = meta.get("khoan")
+            diem = meta.get("diem")
 
-            score = item.get("score")
-            retrieval_source = item.get("retrieval_source", "")
+            citation_parts = [ten_van_ban]
 
-            location_parts = []
-            if chuong:
-                location_parts.append(str(chuong))
             if dieu not in (None, ""):
-                location_parts.append(f"Điều {dieu}")
+                citation_parts.append(f"Điều {dieu}")
+
             if khoan not in (None, ""):
-                location_parts.append(f"Khoản {khoan}")
+                citation_parts.append(f"Khoản {khoan}")
+
             if diem not in (None, ""):
-                location_parts.append(f"Điểm {diem}")
+                citation_parts.append(f"Điểm {diem}")
 
-            location = " | ".join(location_parts) if location_parts else "Không rõ vị trí"
+            citation = " | ".join(citation_parts)
 
-            header = (
-                f"[Nguồn {i}]\n"
-                f"Văn bản: {ten_van_ban}\n"
-                f"Mã văn bản: {ma_van_ban}\n"
-                f"Loại văn bản: {loai_van_ban}\n"
-                f"Cơ quan ban hành: {co_quan_ban_hanh}\n"
-                f"Hiệu lực: {trang_thai} | Ngày hiệu lực: {ngay_hieu_luc}\n"
-                f"Vị trí: {location}\n"
-                f"Tiêu đề điều: {tieu_de_dieu}\n"
-                f"Trang bắt đầu: {trang_bat_dau}\n"
-                f"Retrieval: {retrieval_source} | Score: {score}\n"
-            )
+            block = f"""
+    [{citation}]
 
-            block = f"{header}\nNội dung:\n{text}\n"
+    {text}
+    """.strip()
 
             if total_chars + len(block) > self.max_context_chars:
                 break
@@ -110,7 +93,7 @@ class RAGPipeline:
             context_parts.append(block)
             total_chars += len(block)
 
-        return "\n---\n".join(context_parts)
+        return "\n\n---\n\n".join(context_parts)
 
     def ask(self, question: str, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         question = (question or "").strip()
@@ -130,12 +113,12 @@ class RAGPipeline:
             print("\n=== FINAL CONTEXT SENT TO LLM ===")
             print(context[:3000])
 
-        # answer = self.llm.generate_answer(
-        #     question=question,
-        #     context=context,
-        # )
+        answer = self.llm.generate_answer(
+            question=question,
+            context=context,
+        )
 
-        answer = "Đây là câu trả lời giả định từ LLM dựa trên ngữ cảnh đã cho. Câu trả lời thực tế sẽ được tạo ra bởi mô hình Gemini của Google dựa trên câu hỏi và ngữ cảnh pháp lý được cung cấp."
+        # answer = "Đây là câu trả lời giả định từ LLM dựa trên ngữ cảnh đã cho. Câu trả lời thực tế sẽ được tạo ra bởi mô hình Gemini của Google dựa trên câu hỏi và ngữ cảnh pháp lý được cung cấp."
 
         if self.debug:
             print("\n=== ANSWER FROM LLM ===")
