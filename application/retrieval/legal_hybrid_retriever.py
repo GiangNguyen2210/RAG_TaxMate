@@ -118,9 +118,14 @@ class TaxLegalHybridRetriever:
         debug: bool = False,
     ) -> List[Dict[str, Any]]:
         candidate_k = candidate_k or max(20, top_k * 4)
-        filters = filters or {}
+        filters = dict(filters or {})
 
         qinfo = analyze_query(question)
+
+        if qinfo.ma_van_ban:
+            filters["ma_van_ban"] = qinfo.ma_van_ban
+        elif qinfo.loai_van_ban:
+            filters["loai_van_ban"] = qinfo.loai_van_ban
 
         structured = self._structured_retrieval(qinfo, filters)
         exact = self._exact_retrieval(qinfo, filters)
@@ -164,6 +169,20 @@ class TaxLegalHybridRetriever:
             final = self._post_rerank_legal_priority(question, final)
         else:
             final = expanded[:final_limit]
+
+        # Keep context cleaner for exact Điều + Khoản queries
+        if qinfo.dieu is not None and qinfo.khoan is not None:
+            final = [
+                c for c in final
+                if c.metadata.get("dieu") == qinfo.dieu
+            ]
+
+        # Keep context cleaner for exact Điều queries
+        if qinfo.dieu is not None:
+            final = [
+                c for c in final
+                if c.metadata.get("dieu") == qinfo.dieu
+            ]
 
         if debug:
             self._debug_print(qinfo, structured, exact, bm25, dense, final)
@@ -235,6 +254,16 @@ class TaxLegalHybridRetriever:
             where_topic["chu_de"] = qinfo.chu_de
             docs.extend(self.vectorstore.get_by_metadata(where=where_topic, limit=20))
 
+        unique = {}
+        for d in docs:
+            key = (
+                d.get("metadata", {}).get("chunk_id")
+                or d.get("id")
+            )
+            unique[key] = d
+
+        docs = list(unique.values())
+        
         return [self._to_chunk(d, score=1.0, source="structured") for d in docs]
 
     def _exact_retrieval(
@@ -393,6 +422,34 @@ class TaxLegalHybridRetriever:
             if meta.get("dieu") == 21:
                 boost -= 0.20
 
+        legal_topic = getattr(qinfo, "legal_topic", None)
+
+        if legal_topic == "hoa_don_dien_tu":
+            if meta.get("ma_van_ban") == "70_2025_ND_CP":
+                boost += 0.25
+            if "hóa đơn điện tử" in text or "hóa đơn điện tử" in title:
+                boost += 0.20
+
+        if legal_topic == "hoa_don_may_tinh_tien":
+            if meta.get("ma_van_ban") == "70_2025_ND_CP":
+                boost += 0.35
+            if "máy tính tiền" in text or "máy tính tiền" in title:
+                boost += 0.25
+            if meta.get("dieu") == 11:
+                boost += 0.20
+
+        if legal_topic == "ho_kinh_doanh":
+            if meta.get("ma_van_ban") == "68_2026_ND_CP":
+                boost += 0.25
+            if "hộ kinh doanh" in text or "cá nhân kinh doanh" in text:
+                boost += 0.20
+
+        if legal_topic == "tien_cham_nop_phat":
+            if meta.get("ma_van_ban") == "18_2023_TT_BTC":
+                boost += 0.30
+            if "chậm nộp phạt" in text or "tiền chậm nộp phạt" in text:
+                boost += 0.25
+
         return boost
 
     def _attach_siblings(
@@ -411,6 +468,8 @@ class TaxLegalHybridRetriever:
             ma_van_ban = meta.get("ma_van_ban", "")
             dieu = meta.get("dieu")
             khoan = meta.get("khoan")
+            if getattr(qinfo, "ma_van_ban", None) and ma_van_ban != qinfo.ma_van_ban:
+                continue
 
             if not ma_van_ban or not dieu:
                 continue
@@ -647,6 +706,10 @@ class TaxLegalHybridRetriever:
                 continue
             seen_targets.add(key)
             unique_targets.append(target)
+
+        if getattr(qinfo, "ma_van_ban", None):
+            filters = dict(filters or {})
+            filters["ma_van_ban"] = qinfo.ma_van_ban
 
         base_where = self._base_where(filters)
 

@@ -17,7 +17,10 @@ LEGAL_PHRASES = [
     "quản lý rủi ro",
     "cưỡng chế thi hành quyết định hành chính về quản lý thuế",
     "hóa đơn điện tử",
+    "hóa đơn điện tử khởi tạo từ máy tính tiền",
     "biên lai thu tiền phạt",
+    "tiền chậm nộp phạt",
+    "chậm nộp phạt",
     "hộ kinh doanh",
     "cá nhân kinh doanh",
 ]
@@ -28,21 +31,21 @@ class QueryInfo:
     raw_question: str
     cau_hoi_chuan_hoa: str
 
-    # Legal hierarchy
     dieu: Optional[int] = None
     khoan: Optional[int] = None
     diem: Optional[str] = None
     chuong: Optional[str] = None
 
-    # Query intent
     y_dinh: Optional[str] = None
 
-    # Retrieval helpers
-    cum_tu_chinh_xac: List[str] = field(default_factory=list)
+    ma_van_ban: Optional[str] = None
+    ten_van_ban: Optional[str] = None
     loai_van_ban: Optional[str] = None
-    chu_de: Optional[str] = None
 
-    # Backward-compatible aliases
+    cum_tu_chinh_xac: List[str] = field(default_factory=list)
+    chu_de: Optional[str] = None
+    legal_topic: Optional[str] = None
+
     @property
     def normalized_question(self) -> str:
         return self.cau_hoi_chuan_hoa
@@ -72,6 +75,38 @@ class QueryInfo:
         return self.cum_tu_chinh_xac
 
 
+def detect_document(q: str) -> dict:
+    if "luật quản lý thuế" in q or "108/2025" in q or "108-2025" in q:
+        return {
+            "ma_van_ban": "108_2025_QH15",
+            "ten_van_ban": "Luật quản lý thuế 108/2025/QH15",
+            "loai_van_ban": "luật",
+        }
+
+    if "68/2026" in q or "68-2026" in q or "nghị định 68" in q:
+        return {
+            "ma_van_ban": "68_2026_ND_CP",
+            "ten_van_ban": "68-2026-ND-CP",
+            "loai_van_ban": "nghị_định",
+        }
+
+    if "70/2025" in q or "70-2025" in q or "nghị định 70" in q:
+        return {
+            "ma_van_ban": "70_2025_ND_CP",
+            "ten_van_ban": "70-2025-ND-CP",
+            "loai_van_ban": "nghị_định",
+        }
+
+    if "18/2023" in q or "18-2023" in q or "thông tư 18" in q:
+        return {
+            "ma_van_ban": "18_2023_TT_BTC",
+            "ten_van_ban": "Thông tư 18/2023/TT-BTC",
+            "loai_van_ban": "thông_tư",
+        }
+
+    return {}
+
+
 def detect_intent(q: str) -> Optional[str]:
     if any(x in q for x in ["là gì", "khái niệm", "định nghĩa", "nội dung là gì", "hiểu như thế nào"]):
         return "định_nghĩa"
@@ -82,7 +117,7 @@ def detect_intent(q: str) -> Optional[str]:
     if any(x in q for x in ["thủ tục", "quy trình", "cách thực hiện", "hồ sơ", "cần giấy tờ gì"]):
         return "thủ_tục"
 
-    if any(x in q for x in ["xử phạt", "mức phạt", "vi phạm", "chậm nộp", "tiền phạt"]):
+    if any(x in q for x in ["xử phạt", "mức phạt", "vi phạm", "chậm nộp phạt", "tiền phạt"]):
         return "xử_phạt"
 
     if any(x in q for x in ["nghĩa vụ", "phải làm gì", "trách nhiệm"]):
@@ -104,23 +139,41 @@ def detect_document_type(q: str) -> Optional[str]:
 
 
 def detect_topic(q: str) -> Optional[str]:
-    topic_patterns = [
-        ("chậm nộp", "chậm_nộp_thuế"),
-        ("hóa đơn điện tử", "hóa_đơn_điện_tử"),
-        ("hoàn thuế", "hoàn_thuế"),
-        ("khai thuế", "khai_thuế"),
-        ("nộp thuế", "nộp_thuế"),
-        ("đăng ký thuế", "đăng_ký_thuế"),
-        ("tiền phạt", "thu_nộp_tiền_phạt_biên_lai"),
-        ("biên lai", "thu_nộp_tiền_phạt_biên_lai"),
-        ("hộ kinh doanh", "hộ_kinh_doanh"),
-        ("cá nhân kinh doanh", "hộ_kinh_doanh"),
-        ("quản lý thuế", "quản_lý_thuế"),
-    ]
+    if "quản lý thuế" in q:
+        return "quản_lý_thuế"
+    if "hóa đơn" in q:
+        return "hóa_đơn_chứng_từ"
+    if "hộ kinh doanh" in q or "cá nhân kinh doanh" in q:
+        return "hộ_kinh_doanh"
+    if "tiền phạt" in q or "biên lai" in q:
+        return "thu_nộp_tiền_phạt_biên_lai"
+    return None
 
-    for phrase, topic in topic_patterns:
-        if phrase in q:
-            return topic
+
+def detect_legal_topic(q: str) -> Optional[str]:
+    if "miễn tiền chậm nộp" in q:
+        return "mien_tien_cham_nop"
+
+    if "tiền chậm nộp phạt" in q or "chậm nộp phạt" in q:
+        return "tien_cham_nop_phat"
+
+    if "hóa đơn điện tử khởi tạo từ máy tính tiền" in q or "máy tính tiền" in q:
+        return "hoa_don_may_tinh_tien"
+
+    if "hóa đơn điện tử" in q:
+        return "hoa_don_dien_tu"
+
+    if "hộ kinh doanh" in q or "cá nhân kinh doanh" in q:
+        return "ho_kinh_doanh"
+
+    if "đăng ký thuế" in q:
+        return "dang_ky_thue"
+
+    if "quản lý thuế quốc tế" in q:
+        return "quan_ly_thue_quoc_te"
+
+    if "khai thuế" in q or "nộp thuế" in q:
+        return "khai_nop_thue"
 
     return None
 
@@ -151,6 +204,7 @@ def analyze_query(question: str) -> QueryInfo:
         chuong = m.group(1).upper()
 
     phrases = [p for p in LEGAL_PHRASES if p in q_norm]
+    doc_info = detect_document(q_norm)
 
     return QueryInfo(
         raw_question=q,
@@ -160,7 +214,10 @@ def analyze_query(question: str) -> QueryInfo:
         diem=diem,
         chuong=chuong,
         y_dinh=detect_intent(q_norm),
+        ma_van_ban=doc_info.get("ma_van_ban"),
+        ten_van_ban=doc_info.get("ten_van_ban"),
+        loai_van_ban=doc_info.get("loai_van_ban") or detect_document_type(q_norm),
         cum_tu_chinh_xac=phrases,
-        loai_van_ban=detect_document_type(q_norm),
         chu_de=detect_topic(q_norm),
+        legal_topic=detect_legal_topic(q_norm),
     )

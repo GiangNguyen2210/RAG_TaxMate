@@ -90,6 +90,52 @@ class GroqClient:
     - Không biến nguồn liên quan thành căn cứ chính.
     - Nếu dùng nguồn liên quan, hãy ghi rõ: "Ngoài ra, nguồn liên quan..."
 
+    11. Quy tắc chống suy diễn pháp lý:
+    - Không được kết luận nghĩa vụ thuế nếu context không nói trực tiếp.
+    - Không được suy ra "không phải nộp thuế" chỉ vì context nói "trên ngưỡng thì phải khai/nộp".
+    - Nếu context chỉ nói điều kiện phát sinh nghĩa vụ nhưng không nói rõ trường hợp ngược lại, hãy trả lời:
+    "Context hiện tại chưa đủ để kết luận chắc chắn."
+    - Phân biệt rõ:
+    "quy định trực tiếp"
+    và
+    "suy luận có thể có".
+    - Không biến suy luận thành kết luận pháp lý.
+    
+    12. Không được suy luận pháp lý đối xứng.
+    Ví dụ:
+    - Nếu văn bản nói:
+    "trên ngưỡng X phải nộp thuế"
+    thì KHÔNG được tự kết luận:
+    "dưới ngưỡng X không phải nộp thuế"
+    trừ khi context nói trực tiếp.
+
+    13. Chỉ được kết luận:
+    - nghĩa vụ thuế
+    - miễn thuế
+    - không phải nộp thuế
+    - không phải khai thuế
+    nếu context có quy định trực tiếp.
+
+    14. Không được đồng nhất các khái niệm pháp lý khác nhau.
+    Ví dụ:
+    - "không phải khai thuế"
+    KHÔNG đồng nghĩa với
+    "không phải nộp thuế"
+    - "được miễn tiền chậm nộp"
+    KHÔNG đồng nghĩa với
+    "được miễn nghĩa vụ thuế"
+    - "không phải sử dụng hóa đơn"
+    KHÔNG đồng nghĩa với
+    "không phải kê khai doanh thu"
+
+    15. Khi context sử dụng thuật ngữ pháp lý cụ thể:
+    - phải giữ nguyên thuật ngữ đó trong câu trả lời.
+    - không được tự thay thế bằng thuật ngữ gần nghĩa.
+
+    CHÚ Ý:
+    1.Nếu câu hỏi hỏi riêng về "hộ kinh doanh", chỉ trả lời phần áp dụng cho hộ kinh doanh. Không mở rộng sang doanh nghiệp trừ khi context nói chung cho cả hai và cần thiết.
+    2.Nếu câu hỏi hỏi “có phải nộp thuế không”, nhưng context chỉ nói “không phải khai thuế” hoặc “phải thông báo doanh thu”, thì KHÔNG được trả lời “không phải nộp thuế”. Hãy nói: “Context hiện tại chỉ cho biết nghĩa vụ khai/thông báo, chưa đủ để kết luận trực tiếp về nghĩa vụ nộp thuế.”
+
     QUESTION:
     {question}
 

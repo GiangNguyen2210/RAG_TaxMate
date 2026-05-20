@@ -51,6 +51,28 @@ class RAGPipeline:
             sibling_neighbors=int(os.getenv("RAG_SIBLING_NEIGHBORS", "1")),
         )
 
+    def _legal_answer_guard(self, question: str, answer: str, context: str) -> str:
+        q = question.lower()
+        a = answer.lower()
+        ctx = context.lower()
+
+        sensitive_tax_question = (
+            "có phải nộp thuế" in q
+            or "phải nộp thuế" in q
+            or "không phải nộp thuế" in q
+        )
+
+        if sensitive_tax_question:
+            if "không phải nộp thuế" in a and "không phải nộp thuế" not in ctx:
+                return (
+                    "Context hiện tại chỉ cho biết nghĩa vụ khai/thông báo doanh thu "
+                    "và quy định về trường hợp phát sinh khai, nộp thuế khi vượt ngưỡng. "
+                    "Tôi chưa thấy quy định trực tiếp trong context để kết luận "
+                    "\"không phải nộp thuế\"."
+                )
+
+        return answer
+
     def _build_context(self, retrieved_docs: List[Dict[str, Any]]) -> str:
         context_parts = []
         total_chars = 0
@@ -118,6 +140,8 @@ class RAGPipeline:
             context=context,
         )
 
+        answer = self._legal_answer_guard(question, answer, context)
+        
         # answer = "Đây là câu trả lời giả định từ LLM dựa trên ngữ cảnh đã cho. Câu trả lời thực tế sẽ được tạo ra bởi mô hình Gemini của Google dựa trên câu hỏi và ngữ cảnh pháp lý được cung cấp."
 
         if self.debug:
