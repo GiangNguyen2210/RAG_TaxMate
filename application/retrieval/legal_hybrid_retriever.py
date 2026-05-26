@@ -174,11 +174,14 @@ class TaxLegalHybridRetriever:
         if qinfo.dieu is not None and qinfo.khoan is not None:
             final = [
                 c for c in final
-                if c.metadata.get("dieu") == qinfo.dieu
+                if (
+                    c.metadata.get("dieu") == qinfo.dieu
+                    and str(c.metadata.get("khoan", "")) in ["", str(qinfo.khoan)]
+                )
             ]
 
         # Keep context cleaner for exact Điều queries
-        if qinfo.dieu is not None:
+        elif qinfo.dieu is not None:
             final = [
                 c for c in final
                 if c.metadata.get("dieu") == qinfo.dieu
