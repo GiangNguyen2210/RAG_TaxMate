@@ -132,6 +132,24 @@ class TaxLegalHybridRetriever:
         bm25 = self._bm25_retrieval(question, candidate_k, filters)
         dense = self._dense_retrieval(question, candidate_k, filters)
 
+        print("\n=== BM25 ===")
+
+        for x in bm25[:10]:
+            print(
+                x.metadata.get("ten_van_ban"),
+                x.metadata.get("dieu"),
+                x.score,
+            )
+
+        print("\n=== DENSE ===")
+
+        for x in dense[:10]:
+            print(
+                x.metadata.get("ten_van_ban"),
+                x.metadata.get("dieu"),
+                x.score,
+            )
+
         fused = self._rrf_fuse(
             ranked_lists=[
                 ("structured", structured),
@@ -160,15 +178,56 @@ class TaxLegalHybridRetriever:
         # Reranker is useful for broad/semantic queries.
         # For explicit Điều + Khoản queries, keep hierarchy-expanded chunks intact
         # so all Điểm under that Khoản are not accidentally removed.
+        # if self.enable_reranker and self.reranker is not None and not self._should_skip_rerank(qinfo):
+        #     final = self.reranker.rerank(
+        #         query=question,
+        #         chunks=expanded,
+        #         top_k=min(self.rerank_top_k, final_limit),
+        #     )
+        #     final = self._post_rerank_legal_priority(question, final)
         if self.enable_reranker and self.reranker is not None and not self._should_skip_rerank(qinfo):
+
+            print("\n===== BEFORE RERANK =====")
+
+            for c in expanded[:20]:
+                md = c.metadata
+
+                print(
+                    md.get("ten_van_ban"),
+                    md.get("dieu"),
+                    md.get("khoan"),
+                    round(c.score, 4)
+                )
+
             final = self.reranker.rerank(
                 query=question,
                 chunks=expanded,
                 top_k=min(self.rerank_top_k, final_limit),
             )
-            final = self._post_rerank_legal_priority(question, final)
         else:
             final = expanded[:final_limit]
+
+        final = self._apply_versioning_filter(
+            final,
+            qinfo
+        )
+
+        print("\n===== AFTER RERANK =====")
+
+        for c in final:
+            md = c.metadata
+
+            print(
+                md.get("ten_van_ban"),
+                md.get("dieu"),
+                md.get("khoan"),
+                round(c.score, 4)
+            )
+
+        final = self._post_rerank_legal_priority(
+            question,
+            final
+        )
 
         # Keep context cleaner for exact Điều + Khoản queries
         if qinfo.dieu is not None and qinfo.khoan is not None:
@@ -190,6 +249,7 @@ class TaxLegalHybridRetriever:
         if debug:
             self._debug_print(qinfo, structured, exact, bm25, dense, final)
 
+        print(qinfo)
         return [c.to_dict() for c in final]
 
     get_relevant_chunks = retrieve
@@ -365,10 +425,30 @@ class TaxLegalHybridRetriever:
         for key, chunk in chunks.items():
             score = scores.get(key, 0.0)
             score += self._rule_boost(chunk, qinfo)
+            
+            if getattr(qinfo, "uu_tien_van_ban_sua_doi", False):
+
+                ma_van_ban = chunk.metadata.get("ma_van_ban")
+
             chunk.score = score
             boosted.append((score, chunk))
 
+        # boosted.sort(key=lambda x: x[0], reverse=True)
+        # return [c for _, c in boosted[:top_k]]
         boosted.sort(key=lambda x: x[0], reverse=True)
+
+        print("\n===== RRF TOP 20 =====")
+
+        for score, chunk in boosted[:20]:
+            md = chunk.metadata
+
+            print(
+                md.get("ten_van_ban"),
+                md.get("dieu"),
+                md.get("khoan"),
+                round(score, 4),
+            )
+
         return [c for _, c in boosted[:top_k]]
 
     def _rule_boost(self, chunk: RetrievedChunk, qinfo: QueryInfo) -> float:
@@ -427,6 +507,25 @@ class TaxLegalHybridRetriever:
 
         legal_topic = getattr(qinfo, "legal_topic", None)
 
+        if legal_topic == "nguong_doanh_thu":
+
+            ma = meta.get("ma_van_ban")
+
+            if ma == "141_2026_ND_CP":
+                boost += 2.0
+
+            elif ma == "68_2026_ND_CP":
+                boost += 0.20
+
+            if "01 tỷ đồng" in text:
+                boost += 0.50
+
+            if "1 tỷ đồng" in text:
+                boost += 0.50
+
+            if "1.000.000.000" in text:
+                boost += 0.50
+
         if legal_topic == "hoa_don_dien_tu":
             if meta.get("ma_van_ban") == "70_2025_ND_CP":
                 boost += 0.25
@@ -442,16 +541,48 @@ class TaxLegalHybridRetriever:
                 boost += 0.20
 
         if legal_topic == "ho_kinh_doanh":
-            if meta.get("ma_van_ban") == "68_2026_ND_CP":
-                boost += 0.25
-            if "hộ kinh doanh" in text or "cá nhân kinh doanh" in text:
-                boost += 0.20
+
+            ma = meta.get("ma_van_ban")
+
+            if ma == "68_2026_ND_CP":
+                boost += 0.10
+
+            if ma == "141_2026_ND_CP":
+                boost += 0.50
 
         if legal_topic == "tien_cham_nop_phat":
             if meta.get("ma_van_ban") == "18_2023_TT_BTC":
                 boost += 0.30
             if "chậm nộp phạt" in text or "tiền chậm nộp phạt" in text:
                 boost += 0.25
+
+        # -------------------------------------------------
+        # Amendment-aware retrieval
+        # -------------------------------------------------
+
+        if getattr(qinfo, "uu_tien_van_ban_sua_doi", False):
+
+            ma_van_ban = str(meta.get("ma_van_ban", ""))
+
+            if ma_van_ban == "141_2026_ND_CP":
+                boost += 0.60
+
+            if "01 tỷ đồng" in text:
+                boost += 0.30
+
+            if "1 tỷ đồng" in text:
+                boost += 0.30
+
+            if "sửa đổi" in text:
+                boost += 0.20
+
+        if getattr(qinfo, "uu_tien_van_ban_sua_doi", False):
+
+            if meta.get("ma_van_ban") == "141_2026_ND_CP":
+                boost += 2.0
+
+            if "sửa đổi" in text:
+                boost += 0.50
 
         return boost
 
@@ -835,16 +966,30 @@ class TaxLegalHybridRetriever:
         }
         return order.get((diem or "").lower(), 99)
 
+    # @staticmethod
+    # def _should_skip_rerank(qinfo: QueryInfo) -> bool:
+    #     """
+    #     Skip reranking for highly structured legal lookup.
+
+    #     Reason:
+    #     - Query like "Khoản 2 Điều 5" needs all sibling Điểm.
+    #     - Reranker may keep only 5 chunks and accidentally drop Điểm c/đ/e.
+    #     """
+    #     return qinfo.dieu is not None and qinfo.khoan is not None
+
     @staticmethod
     def _should_skip_rerank(qinfo: QueryInfo) -> bool:
-        """
-        Skip reranking for highly structured legal lookup.
 
-        Reason:
-        - Query like "Khoản 2 Điều 5" needs all sibling Điểm.
-        - Reranker may keep only 5 chunks and accidentally drop Điểm c/đ/e.
-        """
-        return qinfo.dieu is not None and qinfo.khoan is not None
+        if (
+            qinfo.dieu is not None
+            and qinfo.khoan is not None
+        ):
+            return True
+
+        if qinfo.legal_topic == "nguong_doanh_thu":
+            return True
+
+        return False
 
     def _final_limit(self, top_k: int, qinfo: QueryInfo, expanded_count: int) -> int:
         if qinfo.dieu is not None and qinfo.khoan is not None:
@@ -854,3 +999,32 @@ class TaxLegalHybridRetriever:
             return min(max(top_k, 8), expanded_count)
 
         return min(top_k, expanded_count)
+    
+    def _apply_versioning_filter(
+        self,
+        chunks,
+        qinfo
+    ):
+        if qinfo.legal_topic != "nguong_doanh_thu":
+            return chunks
+
+        has_141 = any(
+            c.metadata.get("ma_van_ban") == "141_2026_ND_CP"
+            for c in chunks
+        )
+
+        if not has_141:
+            return chunks
+
+        filtered = []
+
+        for c in chunks:
+
+            ma = c.metadata.get("ma_van_ban")
+
+            if ma == "68_2026_ND_CP":
+                continue
+
+            filtered.append(c)
+
+        return filtered

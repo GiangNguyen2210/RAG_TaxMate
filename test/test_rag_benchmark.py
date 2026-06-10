@@ -1,10 +1,12 @@
+from contextlib import redirect_stdout
+
 from application.pipelines.rag_pipeline import RAGPipeline
 from application.evaluation.benchmark_questions import BENCHMARK_QUESTIONS
 from application.evaluation.benchmark_evaluator import BenchmarkEvaluator
 from application.evaluation.benchmark_reporter import BenchmarkReporter
 
 
-def main():
+def run_benchmark():
     pipeline = RAGPipeline()
 
     evaluations = []
@@ -31,6 +33,16 @@ def main():
         evaluations=evaluations,
         items=BENCHMARK_QUESTIONS,
     )
+
+
+def main():
+    output_file = "benchmark_report.txt"
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        with redirect_stdout(f):
+            run_benchmark()
+
+    print(f"\nBenchmark saved to: {output_file}")
 
 
 if __name__ == "__main__":

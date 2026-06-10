@@ -25,6 +25,30 @@ LEGAL_PHRASES = [
     "cá nhân kinh doanh",
 ]
 
+AMENDMENT_PHRASES = [
+    "mới nhất",
+    "hiện hành",
+    "sửa đổi",
+    "đã sửa đổi",
+    "cập nhật",
+
+    "1 tỷ",
+    "01 tỷ",
+
+    "500 triệu",
+
+    "ngưỡng doanh thu",
+
+    "dưới 1 tỷ",
+    "trên 1 tỷ",
+
+    "doanh thu chịu thuế",
+
+    "doanh thu bao nhiêu",
+    "vượt ngưỡng",
+    "ngưỡng áp dụng",
+    "ngưỡng hóa đơn",
+]
 
 @dataclass
 class QueryInfo:
@@ -45,6 +69,8 @@ class QueryInfo:
     cum_tu_chinh_xac: List[str] = field(default_factory=list)
     chu_de: Optional[str] = None
     legal_topic: Optional[str] = None
+
+    uu_tien_van_ban_sua_doi: bool = False
 
     @property
     def normalized_question(self) -> str:
@@ -143,6 +169,33 @@ def detect_topic(q: str) -> Optional[str]:
         return "quản_lý_thuế"
     if "hóa đơn" in q:
         return "hóa_đơn_chứng_từ"
+    if any(
+        x in q
+        for x in [
+            "ngưỡng doanh thu",
+            "doanh thu chịu thuế",
+            "mức doanh thu",
+
+            "1 tỷ",
+            "01 tỷ",
+            "1 tỷ đồng",
+            "01 tỷ đồng",
+
+            "500 triệu",
+            "500 triệu đồng",
+
+            "dưới 1 tỷ",
+            "trên 1 tỷ",
+
+            "miễn thuế",
+            "chịu thuế",
+            "doanh thu bao nhiêu",
+            "vượt ngưỡng",
+            "ngưỡng áp dụng",
+            "ngưỡng hóa đơn",
+        ]
+    ):
+        return "nguong_doanh_thu"
     if "hộ kinh doanh" in q or "cá nhân kinh doanh" in q:
         return "hộ_kinh_doanh"
     if "tiền phạt" in q or "biên lai" in q:
@@ -151,6 +204,34 @@ def detect_topic(q: str) -> Optional[str]:
 
 
 def detect_legal_topic(q: str) -> Optional[str]:
+    if any(
+        x in q
+        for x in [
+            "ngưỡng doanh thu",
+            "doanh thu chịu thuế",
+            "mức doanh thu",
+
+            "1 tỷ",
+            "01 tỷ",
+            "1 tỷ đồng",
+            "01 tỷ đồng",
+
+            "500 triệu",
+            "500 triệu đồng",
+
+            "dưới 1 tỷ",
+            "trên 1 tỷ",
+
+            "miễn thuế",
+            "chịu thuế",
+            "doanh thu bao nhiêu",
+            "vượt ngưỡng",
+            "ngưỡng áp dụng",
+            "ngưỡng hóa đơn",
+        ]
+    ):
+        return "nguong_doanh_thu"
+
     if "miễn tiền chậm nộp" in q:
         return "mien_tien_cham_nop"
 
@@ -206,6 +287,14 @@ def analyze_query(question: str) -> QueryInfo:
     phrases = [p for p in LEGAL_PHRASES if p in q_norm]
     doc_info = detect_document(q_norm)
 
+    prefer_amendment = any(
+        p in q_norm
+        for p in AMENDMENT_PHRASES
+    )
+
+    if detect_legal_topic(q_norm) == "nguong_doanh_thu":
+        prefer_amendment = True
+
     return QueryInfo(
         raw_question=q,
         cau_hoi_chuan_hoa=q_norm,
@@ -220,4 +309,5 @@ def analyze_query(question: str) -> QueryInfo:
         cum_tu_chinh_xac=phrases,
         chu_de=detect_topic(q_norm),
         legal_topic=detect_legal_topic(q_norm),
+        uu_tien_van_ban_sua_doi=prefer_amendment,
     )

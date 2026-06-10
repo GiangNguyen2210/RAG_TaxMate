@@ -1,0 +1,182 @@
+
+========== TAXMATE RAG BENCHMARK ==========
+
+====================================================================================================
+ID: NR198_001
+CATEGORY: resolution
+QUESTION: Nghị quyết 198 quy định gì về hộ kinh doanh?
+
+ANSWER:
+Căn cứ Điều 4 của Nghị quyết 198-2025-QH15, quy định về hộ kinh doanh như sau:
+
+- Khoản 6: Ứng dụng mạnh mẽ chuyển đổi số trong hoạt động thanh tra, kiểm tra đối với doanh nghiệp, hộ kinh doanh, cá nhân kinh doanh. Ưu tiên thanh tra, kiểm tra từ xa dựa trên các dữ liệu điện tử; giảm thanh tra, kiểm tra trực tiếp.
+
+- Khoản 7: Miễn kiểm tra thực tế tại doanh nghiệp, hộ kinh doanh, cá nhân kinh doanh đối với doanh nghiệp, hộ kinh doanh, cá nhân kinh doanh tuân thủ tốt quy định của pháp luật.
+
+- Khoản 8: Hoàn thiện hệ thống pháp luật, xóa bỏ các rào cản tiếp cận thị trường, bảo đảm môi trường kinh doanh thông thoáng, minh bạch, rõ ràng, nhất quán, ổn định lâu dài, dễ tuân thủ, chi phí thấp.
+
+Ngoài ra, nguồn liên quan tại Điều 2 của Nghị định 68-2026-ND-CP cũng quy định về đối tượng áp dụng cho hộ kinh doanh, cá nhân kinh doanh trong việc thực hiện nghĩa vụ thuế.
+
+TOP SOURCE:
+{'document': '198-2025-QH15', 'dieu': 4, 'khoan': 8, 'diem': '', 'score': 0.7276744246482849, 'source': 'sibling+reranker'}
+
+CHECK:
+document_correct: True
+dieu_correct: True
+khoan_correct: True
+keyword_match: True
+must_contain_match: True
+hallucination_safe: True
+citation_required: False
+citation_correct: True
+====================================================================================================
+ID: NR198_002
+CATEGORY: resolution
+QUESTION: Nghị quyết 198 có định hướng gì đối với thuế khoán?
+
+ANSWER:
+Căn cứ Khoản 6, Điều 10 của Nghị quyết 198-2025-QH15, hộ kinh doanh, cá nhân kinh doanh không áp dụng phương pháp khoán thuế từ ngày 01 tháng 01 năm 2026 và sẽ nộp thuế theo pháp luật về quản lý thuế. Điều này cho thấy Nghị quyết 198 có định hướng loại bỏ phương pháp khoán thuế đối với hộ kinh doanh và cá nhân kinh doanh, chuyển sang áp dụng pháp luật về quản lý thuế.
+
+TOP SOURCE:
+{'document': '198-2025-QH15', 'dieu': 10, 'khoan': 6, 'diem': '', 'score': 0.18615512549877167, 'source': 'bm25+reranker'}
+
+CHECK:
+document_correct: True
+dieu_correct: True
+khoan_correct: True
+keyword_match: False
+must_contain_match: True
+hallucination_safe: True
+citation_required: False
+citation_correct: True
+====================================================================================================
+ID: NR198_003
+CATEGORY: resolution
+QUESTION: Nghị quyết 198 có quy định gì về lệ phí môn bài?
+
+ANSWER:
+Căn cứ Khoản 7, Điều 10 của Nghị quyết 198-2025-QH15, việc thu, nộp lệ phí môn bài sẽ chấm dứt từ ngày 01 tháng 01 năm 2026.
+
+TOP SOURCE:
+{'document': '198-2025-QH15', 'dieu': 10, 'khoan': '', 'diem': '', 'score': 0.8275666832923889, 'source': 'bm25+reranker'}
+
+CHECK:
+document_correct: True
+dieu_correct: True
+khoan_correct: True
+keyword_match: True
+must_contain_match: True
+hallucination_safe: True
+citation_required: False
+citation_correct: True
+====================================================================================================
+ID: CROSS_004
+CATEGORY: cross_document
+QUESTION: Doanh thu dưới 1 tỷ đồng thì nghĩa vụ thuế của hộ kinh doanh được quy định ở những văn bản nào?
+
+ANSWER:
+Căn cứ Điều 8 và Điều 9 của Nghị định 68-2026-ND-CP, nghĩa vụ thuế của hộ kinh doanh dưới 1 tỷ đồng được quy định như sau:
+
+- Đối với hộ kinh doanh mới ra kinh doanh, nếu có doanh thu thực tế từ 500 triệu đồng trở xuống, thực hiện thông báo doanh thu thực tế phát sinh.
+- Nếu có doanh thu lũy kế trên 500 triệu đồng, thực hiện khai thuế theo quý.
+- Trường hợp hộ kinh doanh có doanh thu tính thuế giá trị gia tăng năm trước chưa đến 01 tỷ đồng nhưng trong năm tính thuế có doanh thu tính thuế giá trị gia tăng từ 01 tỷ đồng trở lên, phải áp dụng hóa đơn điện tử có mã của cơ quan thuế hoặc hóa đơn điện tử khởi tạo từ máy tính tiền có kết nối dữ liệu với cơ quan thuế.
+
+Các văn bản pháp lý liên quan đến nghĩa vụ thuế của hộ kinh doanh dưới 1 tỷ đồng bao gồm:
+* Điều 8 của Nghị định 68-2026-ND-CP về nguyên tắc khai thuế, tính thuế và sử dụng hóa đơn.
+* Điều 9 của Nghị định 68-2026-ND-CP về khai thuế, nộp thuế giá trị gia tăng, thuế thu nhập cá nhân đối với hộ kinh doanh, cá nhân kinh doanh mới ra kinh doanh.
+
+TOP SOURCE:
+{'document': '68-2026-ND-CP', 'dieu': 8, 'khoan': '', 'diem': '', 'score': 0.5984223484992981, 'source': 'bm25+dense+reranker'}
+
+CHECK:
+document_correct: True
+dieu_correct: True
+khoan_correct: True
+keyword_match: True
+must_contain_match: True
+hallucination_safe: True
+citation_required: False
+citation_correct: True
+====================================================================================================
+ID: CROSS_005
+CATEGORY: cross_document
+QUESTION: Hộ kinh doanh sử dụng hóa đơn điện tử cần tham khảo những văn bản nào?
+
+ANSWER:
+Căn cứ Điều 11 của Nghị định 70-2025-ND-CP và Điều 26 của Luật quản lý thuế 108/2025/QH15, hộ kinh doanh sử dụng hóa đơn điện tử cần tham khảo các văn bản sau:
+
+* Nghị định 70-2025-ND-CP, đặc biệt là Điều 11 về hóa đơn điện tử khởi tạo từ máy tính tiền.
+* Luật quản lý thuế 108/2025/QH15, đặc biệt là Điều 26 về hóa đơn điện tử.
+
+Ngoài ra, hộ kinh doanh cũng cần tham khảo các phụ lục và mẫu đơn liên quan đến hóa đơn điện tử, như Mẫu số 01/TB-TNĐT, Mẫu 01/ĐKTĐ-HĐĐT Phụ lục IA và Phụ lục TA ban hành kèm theo Nghị định 70-2025-ND-CP.
+
+TOP SOURCE:
+{'document': '70-2025-ND-CP', 'dieu': 11, 'khoan': 11, 'diem': 'a', 'score': 0.9402232766151428, 'source': 'bm25+dense+reranker'}
+
+CHECK:
+document_correct: True
+dieu_correct: True
+khoan_correct: True
+keyword_match: True
+must_contain_match: True
+hallucination_safe: True
+citation_required: False
+citation_correct: True
+====================================================================================================
+ID: CROSS_006
+CATEGORY: cross_document
+QUESTION: Khi chậm nộp thuế hoặc chậm nộp tiền phạt thì cần tham khảo những văn bản nào?
+
+ANSWER:
+Căn cứ Điều 14 của Luật quản lý thuế 108/2025/QH15, khi chậm nộp thuế hoặc chậm nộp tiền phạt, cần tham khảo các văn bản sau:
+
+* Khoản 1, Điểm a: Thời hạn nộp thuế, khoản thu khác chậm nhất là ngày cuối cùng của thời hạn nộp hồ sơ khai thuế, khoản thu khác.
+* Khoản 1, Điểm b: Thời hạn nộp thuế, khoản thu khác, tiền chậm nộp, tiền phạt là thời hạn ghi trên thông báo, quyết định của cơ quan quản lý thuế theo quy định của pháp luật.
+* Khoản 2: Người nộp thuế nộp tiền thuế, khoản thu khác, tiền chậm nộp, tiền phạt theo một trong các phương thức sau:
+ + Nộp theo phương thức điện tử qua Hệ thống thông tin quản lý thuế; Hệ thống dịch vụ công trực tuyến của Kho bạc Nhà nước; dịch vụ thanh toán điện tử của tổ chức cung ứng dịch vụ thanh toán, tổ chức cung ứng dịch vụ trung gian thanh toán, tổ chức dịch vụ khác có kết nối trực tiếp hoặc gián tiếp với Hệ thống thông tin quản lý thuế của cơ quan quản lý thuế theo quy định của pháp luật.
+ + Nộp trực tiếp tại tổ chức cung ứng dịch vụ thanh toán, tổ chức cung ứng dịch vụ trung gian thanh toán, tổ chức dịch vụ khác có kết nối trực tiếp hoặc gián tiếp với Hệ thống thông tin quản lý thuế của cơ quan quản lý thuế; cơ quan nhà nước có thẳm quyền theo quy định của pháp luật; cơ quan quản lý thuế; tổ chức được cơ quan quản lý thuế ủy nhiệm thu thuế.
+
+Ngoài ra, nguồn liên quan tại Điều 14 của Luật quản lý thuế 108/2025/QH15 cũng quy định về việc xác định ngày nộp thuế, khoản thu khác, tiền chậm nộp, tiền phạt và việc cấp chứng từ nộp tiền.
+
+TOP SOURCE:
+{'document': 'Luật quản lý thuế 108/2025/QH15', 'dieu': 14, 'khoan': 1, 'diem': 'b', 'score': 0.8050286769866943, 'source': 'bm25+dense+reranker'}
+
+CHECK:
+document_correct: True
+dieu_correct: True
+khoan_correct: True
+keyword_match: True
+must_contain_match: True
+hallucination_safe: True
+citation_required: False
+citation_correct: True
+
+========== SUMMARY ==========
+Total: 6
+document_correct: 6/6 (100.0%)
+dieu_correct: 6/6 (100.0%)
+khoan_correct: 6/6 (100.0%)
+keyword_match: 5/6 (83.3%)
+must_contain_match: 6/6 (100.0%)
+hallucination_safe: 6/6 (100.0%)
+citation_correct: 6/6 (100.0%)
+
+========== FAILED CASES ==========
+
+----------------------------------------
+ID: NR198_002
+CATEGORY: resolution
+QUESTION: Nghị quyết 198 có định hướng gì đối với thuế khoán?
+FAILED: keyword_match
+
+========== CATEGORY SUMMARY ==========
+resolution: 2/3 (66.7%)
+cross_document: 3/3 (100.0%)
+
+Perfect Cases: 5/6 (83.3%)
+
+========== FAILURE BREAKDOWN ==========
+keyword_match: 1
+
+========== CATEGORY FAILURES ==========
+resolution 1
