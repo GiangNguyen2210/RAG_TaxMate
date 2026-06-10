@@ -3,6 +3,45 @@ from typing import Dict, Any
 from application.evaluation.citation_evaluator import CitationEvaluator
 from application.evaluation.hallucination_evaluator import HallucinationEvaluator
 
+DOCUMENT_ALIASES = {
+    "Luật quản lý thuế 108/2025/QH15": [
+        "108-2025-QH15",
+        "Luật quản lý thuế 108/2025/QH15",
+    ],
+
+    "Luật Thuế giá trị gia tăng 48/2024/QH15": [
+        "48-2024-QH15",
+        "Luật Thuế giá trị gia tăng 48/2024/QH15",
+    ],
+
+    "Luật Thuế thu nhập cá nhân 109/2025/QH15": [
+        "109-2025-QH15",
+        "Luật Thuế thu nhập cá nhân 109/2025/QH15",
+    ],
+
+    "Nghị quyết 198/2025/QH15": [
+        "198-2025-QH15",
+        "Nghị quyết 198/2025/QH15",
+    ],
+
+    "68-2026-ND-CP": [
+        "68-2026-ND-CP",
+    ],
+
+    "70-2025-ND-CP": [
+        "70-2025-ND-CP",
+    ],
+
+    "Thông tư 18/2023/TT-BTC": [
+        "18-2023-TT-BTC",
+        "Thông tư 18/2023/TT-BTC",
+    ],
+
+    "Thông tư 32/2025/TT-BTC": [
+        "32-2025-TT-BTC",
+        "Thông tư 32/2025/TT-BTC",
+    ],
+}
 
 class BenchmarkEvaluator:
 
@@ -33,7 +72,10 @@ class BenchmarkEvaluator:
         top_dieu = top_source.get("dieu")
         top_khoan = top_source.get("khoan")
 
-        is_doc_correct = expected_doc is None or top_doc == expected_doc
+        is_doc_correct = BenchmarkEvaluator.document_match(
+            expected_doc,
+            top_doc,
+        )
 
         if acceptable_dieu:
             is_dieu_correct = top_dieu in acceptable_dieu
@@ -70,3 +112,19 @@ class BenchmarkEvaluator:
             "citation_required": citation_eval["citation_required"],
             "citation_correct": citation_eval["citation_correct"],
         }
+    
+    @staticmethod
+    def document_match(
+        expected_doc: str | None,
+        actual_doc: str | None,
+    ) -> bool:
+
+        if expected_doc is None:
+            return True
+
+        aliases = DOCUMENT_ALIASES.get(
+            expected_doc,
+            [expected_doc]
+        )
+
+        return actual_doc in aliases

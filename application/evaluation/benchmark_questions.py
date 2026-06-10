@@ -52,7 +52,7 @@ BENCHMARK_QUESTIONS = [
         "expected_document": "68-2026-ND-CP",
         "acceptable_dieu": [8, 9, 10],
         "acceptable_khoan": [1, 2, ""],
-        "expected_keywords": ["trên 500 triệu", "khai thuế", "nộp thuế"],
+        "expected_keywords": ["01 tỷ đồng", "khai thuế", "nộp thuế"],
         "expected_citation": ["Nghị định 68"],
         "category": "condition",
     },
@@ -80,7 +80,7 @@ BENCHMARK_QUESTIONS = [
     },
     {
         "id": "PROC_002",
-        "question": "hộ kinh doanh có doanh thu từ 500 triệu đồng trở xuống phải làm gì với doanh thu thực tế phát sinh?",
+        "question": "hộ kinh doanh có doanh thu từ 1 tỷ đồng trở xuống phải làm gì với doanh thu thực tế phát sinh?",
         "expected_document": "68-2026-ND-CP",
         "acceptable_dieu": [8, 9],
         "expected_keywords": ["thông báo doanh thu thực tế", "cơ quan thuế", "31 tháng 01"],
@@ -177,11 +177,11 @@ BENCHMARK_QUESTIONS = [
     # anti_hallucination
     {
         "id": "ANTI_001",
-        "question": "hộ kinh doanh, cá nhân kinh doanh có doanh thu dưới 500 triệu đồng thì có phải nộp thuế giá trị gia tăng không?",
+        "question": "hộ kinh doanh, cá nhân kinh doanh có doanh thu dưới 1 tỷ đồng thì có phải nộp thuế giá trị gia tăng không?",
         "expected_document": "68-2026-ND-CP",
         "acceptable_dieu": [8, 9, 10],
         "acceptable_khoan": [1, 2, ""],
-        "expected_keywords": ["thông báo doanh thu", "500 triệu", "khai thuế"],
+        "expected_keywords": ["thông báo doanh thu", "1 tỷ đồng", "khai thuế"],
         "expected_citation": ["Nghị định 68"],
         "must_contain": ["chưa đủ để kết luận"],
         "must_not_contain": ["không phải nộp thuế giá trị gia tăng", "không phải nộp thuế gtgt"],
@@ -283,4 +283,130 @@ BENCHMARK_QUESTIONS = [
         "expected_keywords": ["khác", "tiền chậm nộp thuế", "tiền chậm nộp phạt"],
         "category": "terminology",
     },
+    {
+        "id": "VAT_001",
+        "question": "Đối tượng chịu thuế giá trị gia tăng là gì?",
+        "expected_document": "Luật Thuế giá trị gia tăng 48/2024/QH15",
+        "acceptable_dieu": [4],
+        "expected_keywords": [
+            "hàng hóa",
+            "dịch vụ",
+            "sản xuất",
+            "kinh doanh"
+        ],
+        "category": "vat",
+    },
+    {
+        "id": "VAT_002",
+        "question": "Ai là người nộp thuế giá trị gia tăng?",
+        "expected_document": "Luật Thuế giá trị gia tăng 48/2024/QH15",
+        "acceptable_dieu": [5],
+        "expected_keywords": [
+            "người nộp thuế",
+            "tổ chức",
+            "cá nhân"
+        ],
+        "category": "vat",
+    },
+    {
+        "id": "VAT_003",
+        "question": "Các đối tượng không chịu thuế GTGT được quy định ở đâu?",
+        "expected_document": "Luật Thuế giá trị gia tăng 48/2024/QH15",
+        "acceptable_dieu": [5, 6, 7],
+        "expected_keywords": [
+            "không chịu thuế"
+        ],
+        "category": "vat",
+    },
+    {
+        "id": "VAT_004",
+        "question": "Hoàn thuế giá trị gia tăng được áp dụng trong những trường hợp nào?",
+        "expected_document": "Luật Thuế giá trị gia tăng 48/2024/QH15",
+        "expected_keywords": [
+            "hoàn thuế"
+        ],
+        "category": "vat",
+    },
+    {
+        "id": "PIT_001",
+        "question": "Ai là người nộp thuế thu nhập cá nhân?",
+        "expected_document": "Luật Thuế thu nhập cá nhân 109/2025/QH15",
+        "expected_keywords": [
+            "cá nhân cư trú",
+            "cá nhân không cư trú"
+        ],
+        "category": "pit",
+    },
+    {
+        "id": "PIT_002",
+        "question": "Thu nhập từ hoạt động kinh doanh có thuộc thu nhập chịu thuế không?",
+        "expected_document": "Luật Thuế thu nhập cá nhân 109/2025/QH15",
+        "expected_keywords": [
+            "thu nhập từ kinh doanh"
+        ],
+        "category": "pit",
+    },
+    {
+        "id": "PIT_003",
+        "question": "Các loại thu nhập chịu thuế thu nhập cá nhân bao gồm những gì?",
+        "expected_document": "Luật Thuế thu nhập cá nhân 109/2025/QH15",
+        "expected_keywords": [
+            "thu nhập chịu thuế"
+        ],
+        "category": "pit",
+    },
+    # {
+    #     "id": "NR198_001",
+    #     "question": "Nghị quyết 198 quy định gì về hộ kinh doanh?",
+    #     "expected_document": "Nghị quyết 198/2025/QH15",
+    #     "expected_keywords": [
+    #         "hộ kinh doanh"
+    #     ],
+    #     "category": "resolution",
+    # },
+    # {
+    #     "id": "NR198_002",
+    #     "question": "Nghị quyết 198 có định hướng gì đối với thuế khoán?",
+    #     "expected_document": "Nghị quyết 198/2025/QH15",
+    #     "expected_keywords": [
+    #         "thuế khoán"
+    #     ],
+    #     "category": "resolution",
+    # },
+    # {
+    #     "id": "NR198_003",
+    #     "question": "Nghị quyết 198 có quy định gì về lệ phí môn bài?",
+    #     "expected_document": "Nghị quyết 198/2025/QH15",
+    #     "expected_keywords": [
+    #         "lệ phí môn bài"
+    #     ],
+    #     "category": "resolution",
+    # },
+    # {
+    #     "id": "CROSS_004",
+    #     "question": "Doanh thu dưới 1 tỷ đồng thì nghĩa vụ thuế của hộ kinh doanh được quy định ở những văn bản nào?",
+    #     "expected_keywords": [
+    #         "Nghị định 68",
+    #         "Nghị định 141"
+    #     ],
+    #     "category": "cross_document",
+    # },
+    # {
+    #     "id": "CROSS_005",
+    #     "question": "Hộ kinh doanh sử dụng hóa đơn điện tử cần tham khảo những văn bản nào?",
+    #     "expected_keywords": [
+    #         "Nghị định 70",
+    #         "Thông tư 32"
+    #     ],
+    #     "category": "cross_document",
+    # },
+    # {
+    #     "id": "CROSS_006",
+    #     "question": "Khi chậm nộp thuế hoặc chậm nộp tiền phạt thì cần tham khảo những văn bản nào?",
+    #     "expected_keywords": [
+    #         "Luật quản lý thuế",
+    #         "Thông tư 18"
+    #     ],
+    #     "category": "cross_document",
+    # },
 ]
