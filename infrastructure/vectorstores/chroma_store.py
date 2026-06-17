@@ -71,6 +71,7 @@
 #     def count(self) -> int:
 #         return self.collection.count()
 
+import json
 from typing import Any, Dict, List, Optional
 import os
 import chromadb
@@ -82,11 +83,24 @@ class ChromaStore:
         path: Optional[str] = None,
         collection_name: Optional[str] = None,
     ):
-        self.path = path or os.getenv("CHROMA_DB_PATH", "./chroma_db")
-        self.collection_name = collection_name or os.getenv("CHROMA_COLLECTION_NAME", "rag_docs")
+        self.path = (
+            path
+            or os.getenv("CHROMA_PERSIST_DIR")
+            or os.getenv("CHROMA_DB_PATH")
+            or "./chroma_db"
+        )
+
+        self.collection_name = (
+            collection_name
+            or os.getenv("CHROMA_COLLECTION")
+            or os.getenv("CHROMA_COLLECTION_NAME")
+            or "rag_docs"
+        )
 
         self.client = chromadb.PersistentClient(path=self.path)
-        self.collection = self.client.get_or_create_collection(name=self.collection_name)
+        self.collection = self.client.get_or_create_collection(
+            name=self.collection_name
+        )
 
     def similarity_search_by_vector(
         self,
@@ -233,11 +247,55 @@ class ChromaStore:
         ids = ids or [str(uuid.uuid4()) for _ in documents]
 
         texts = [doc["text"] for doc in documents]
-        metadatas = [doc.get("metadata", {}) for doc in documents]
+        metadatas = [
+            {
+                key: self._normalize_metadata_value(value)
+                for key, value in doc.get("metadata", {}).items()
+            }
+            for doc in documents
+        ]
 
         self.collection.add(
             ids=ids,
             documents=texts,
             metadatas=metadatas,
             embeddings=embeddings,
+        )
+
+    def count(self) -> int:
+        return self.collection.count()
+    
+    def delete_by_ids(self, ids: List[str]) -> None:
+        if not ids:
+            return
+
+        try:
+            self.collection.delete(ids=ids)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _normalize_metadata_value(value: Any) -> Any:
+        if value is None:
+            return ""
+
+        if isinstance(value, list):
+            return json.dumps(value, ensure_ascii=False)
+
+        if isinstance(value, dict):
+            return json.dumps(value, ensure_ascii=False)
+
+        if isinstance(value, (str, int, float, bool)):
+            return value
+
+        return str(value)
+    
+    def reset(self) -> None:
+        try:
+            self.client.delete_collection(self.collection_name)
+        except Exception:
+            pass
+
+        self.collection = self.client.get_or_create_collection(
+            name=self.collection_name
         )
